@@ -1,16 +1,12 @@
 package utils
 
 import (
-	"os"
 	"io"
 	"fmt"
 	"crypto/md5"
 	"regexp"
 	"net"
 	"errors"
-	"encoding/json"
-	"io/ioutil"
-	"github.com/sirupsen/logrus"
 )
 
 func MakeStringMd5(str string) string {
@@ -47,27 +43,3 @@ func GetLocalIpaddr() (string , error){
 	return "", errors.New("can not find local ip address")
 }
 
-func ParseHttpBody(httpbody io.ReadCloser, v interface{}) error{
-	body, err := ioutil.ReadAll(httpbody)
-	if err != nil {
-		return err
-	}
-	if err = json.Unmarshal(body, v); err != nil {
-		return err
-	}
-	return nil
-
-}
-
-var Logger = logrus.New()
-
-func InitLog(filename string) error{
-	logfile, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0755)
-	if err !=nil {
-		fmt.Println("open logfile error : ", err)
-		return err
-	}
-	Logger.SetOutput(logfile)
-	return nil
-
-}

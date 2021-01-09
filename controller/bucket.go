@@ -33,7 +33,7 @@ func BucketCreate(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 		return
 	}
 	var args BucketCreateArgs
-	err := utils.ParseHttpBody(req.Body, &args)
+	err := ParseHttpBody(req.Body, &args)
 	if err != nil{
 		SendReponseMsg(http.StatusBadRequest, "bucket create args error", w)
 		utils.Logger.Info("bucket create args error")
@@ -94,7 +94,7 @@ func BucketDelete(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 		return 
 	}
 	var args BucketDeleteArgs
-	err := utils.ParseHttpBody(req.Body, &args)
+	err := ParseHttpBody(req.Body, &args)
 	if err != nil{
 		SendReponseMsg(http.StatusBadRequest, "bucket delete args error", w)
 		utils.Logger.Info("bucket delete args error")
@@ -131,7 +131,7 @@ func BucketRename(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 		return 
 	}
 	var args BucketRenameArgs
-	err := utils.ParseHttpBody(req.Body, &args)
+	err := ParseHttpBody(req.Body, &args)
 	if err != nil{
 		SendReponseMsg(http.StatusBadRequest, "bucket rename args error", w)
 		utils.Logger.Info("bucket rename args error")

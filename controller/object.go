@@ -118,7 +118,7 @@ func ObjectDownload(w http.ResponseWriter, req *http.Request, p httprouter.Param
 		return 
 	}
 	var args ObjectDownloadArgs
-	err := utils.ParseHttpBody(req.Body, &args)
+	err := ParseHttpBody(req.Body, &args)
 	if err != nil{
 		SendReponseMsg(http.StatusBadRequest, "object download args error", w)
 		utils.Logger.Info("object download args error")
@@ -171,7 +171,7 @@ func ObjectList(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
 	}
 	userid := utils.MakeStringMd5(req.Header["Username"][0])
 	var args ObjectListArgs
-	err := utils.ParseHttpBody(req.Body, &args)
+	err := ParseHttpBody(req.Body, &args)
 	if err != nil{
 		SendReponseMsg(http.StatusBadRequest, "object list args error", w)
 		utils.Logger.Info("object list args error")
@@ -200,7 +200,7 @@ func ObjectDelete(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 		return
 	}
 	var args ObjectDeleteArgs
-	err := utils.ParseHttpBody(req.Body, &args)
+	err := ParseHttpBody(req.Body, &args)
 	if err != nil{
 		SendReponseMsg(http.StatusBadRequest, "object delete args error", w)
 		utils.Logger.Info("object delete args error")
@@ -234,7 +234,7 @@ func ObjectRename(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 		return
 	}
 	var args ObjectRenameArgs
-	err := utils.ParseHttpBody(req.Body, &args)
+	err := ParseHttpBody(req.Body, &args)
 	if err != nil{
 		SendReponseMsg(http.StatusBadRequest, "object rename args error", w)
 		utils.Logger.Info("object rename args error")
@@ -274,7 +274,7 @@ func ObjectMove(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
 		return
 	}
 	var args ObjectMoveArgs
-	err := utils.ParseHttpBody(req.Body, &args)
+	err := ParseHttpBody(req.Body, &args)
 	if err != nil{
 		SendReponseMsg(http.StatusBadRequest, "object move args error", w)
 		utils.Logger.Info("object move args error")

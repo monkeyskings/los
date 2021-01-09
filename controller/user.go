@@ -23,7 +23,7 @@ func UserIsExist(username string) bool{
 
 func UserCreate(w http.ResponseWriter, req *http.Request, p httprouter.Params){
 	var args UserCreateArgs
-	err := utils.ParseHttpBody(req.Body, &args)
+	err := ParseHttpBody(req.Body, &args)
 	if err != nil{
 		SendReponseMsg(http.StatusBadRequest, "user create args error", w)
 		utils.Logger.Info("user create args error")

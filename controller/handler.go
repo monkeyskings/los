@@ -8,6 +8,7 @@ import (
 	"los/utils"
 	"errors"
 	"io"
+	"io/ioutil"
 	"encoding/json"
 	"fmt"
 )
@@ -83,6 +84,18 @@ func RegisterHandlers() *httprouter.Router{
 	router.PUT("/object/rename", ObjectRename)
 	router.PUT("/object/move", ObjectMove)
 	return router
+}
+
+func ParseHttpBody(httpbody io.ReadCloser, v interface{}) error{
+	body, err := ioutil.ReadAll(httpbody)
+	if err != nil {
+		return err
+	}
+	if err = json.Unmarshal(body, v); err != nil {
+		return err
+	}
+	return nil
+
 }
 
 func SendReponseMsg(errcode int, msg string, w http.ResponseWriter) {
