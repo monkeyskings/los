@@ -1,13 +1,13 @@
 package main
 import (
-	"object-storage/controller"
-	"object-storage/metaproxy"
-	"object-storage/dataproxy"
+	"los/controller"
+	"los/metaproxy"
+	"los/dataproxy"
 	"os"
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	"object-storage/utils"
+	"los/utils"
 )
 
 type Config struct {

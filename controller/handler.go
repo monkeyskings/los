@@ -7,6 +7,8 @@ import (
 	"github.com/jinzhu/gorm"
 	"los/utils"
 	"errors"
+	"io"
+	"encoding/json"
 	"fmt"
 )
 
@@ -81,6 +83,15 @@ func RegisterHandlers() *httprouter.Router{
 	router.PUT("/object/rename", ObjectRename)
 	router.PUT("/object/move", ObjectMove)
 	return router
+}
+
+func SendReponseMsg(errcode int, msg string, w http.ResponseWriter) {
+	res := ResponseData{
+		Errorcode: errcode,
+		Message: msg,
+	}
+	ret, _ := json.Marshal(res)
+	io.WriteString(w, string(ret))
 }
 
 func Start(Db *gorm.DB, gconf map[string]string)error{

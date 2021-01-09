@@ -3,12 +3,12 @@ package controller
 
 import (
 	"net/http"
-	"io"
 	"github.com/julienschmidt/httprouter"
 	"los/utils"
-	"encoding/json"
 	"fmt"
+	"time"
 	"strings"
+	"io"
 	"los/metaproxy"
 	"los/dataproxy"
 )
@@ -23,16 +23,8 @@ func ObjectIsExist(objectname string, bucketid string, userid string) bool{
 }
 
 func ObjectUpload(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "object upload permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "object upload permission deny", w)
 		utils.Logger.Info("object upload permission deny")
 		return
 	}
@@ -42,48 +34,34 @@ func ObjectUpload(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 	userid := utils.MakeStringMd5(username)
 	objectname := req.PostFormValue("objectname")
 	if utils.CheckFileNameNormal(objectname) == false{
-		res.Errorcode = 400
-		res.Message = "object name abnormal"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object name abnormal", w)
 		utils.Logger.Info("object name abnormal")
 		return 
 	}
 	if BucketIsExist(bucketname, userid) == false {
-		res.Errorcode = 400
-		res.Message = "object upload bucket not exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object upload bucket not exists", w)
 		utils.Logger.Info("object upload bucket not exits")
 		return 
 	}
 
 	if ObjectIsExist(objectname, bucketid, userid){
-		res.Errorcode = 400
-		res.Message = "object already exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object already exists", w)
 		utils.Logger.Info("object already exits : ", username, bucketname, objectname)
 		return 
 	}
 	file, _, err :=req.FormFile("filepath")
-	filename := utils.MakeStringMd5(fmt.Sprintf("%s-%s-%s", username, bucketname, objectname))
+	nowtime := time.Now().Unix()
+	filename := utils.MakeStringMd5(fmt.Sprintf("%s-%s-%s-%d", username, bucketname, objectname, nowtime))
 	err = dataproxy.DataCreate(filename, file)
 	if err != nil {
-		res.Errorcode = 500
-		res.Message = "object upload error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusInternalServerError, "object upload error", w)
 		utils.Logger.Error("object upload error : ", username, bucketname, objectname, err)
 		return 
 	}
 	objectid := utils.MakeStringMd5(objectname)
 	espaddr, ok := GlobalConf["espaddr"]
 	if ok == false{
-		res.Errorcode = 500
-		res.Message = "object upload error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusInternalServerError, "object upload error", w)
 		utils.Logger.Error("object upload error : ", username, bucketname, objectname, err)
 		return 
 	}
@@ -96,21 +74,16 @@ func ObjectUpload(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 		IsDelete : false,
 		Location : espaddr,
 	}
-	Dbcon.Create(&object)
-	if ObjectIsExist(objectname, bucketid, userid) == false{
-		res.Errorcode = 500
-		res.Message = "object upload error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	err = Dbcon.Create(&object).Error
+	if err != nil{
+		SendReponseMsg(http.StatusInternalServerError, "object upload error", w)
 		utils.Logger.Error("object upload error : ", username, bucketname, objectname, err)
 		return 
 	}
-	res.Message = "object upload success"
-	ret, _ := json.Marshal(res)
-	io.WriteString(w, string(ret))
+	SendReponseMsg(http.StatusOK, "object upload success", w)
 }
 
-func ObjectProxyDownload(location string, w http.ResponseWriter, req *http.Request, bucketname string, objectname string)error{
+func ObjectProxyDownload(location string, w http.ResponseWriter, req *http.Request, username string, bucketname string, objectname string)error{
 	client := &http.Client{}
 
 	body := fmt.Sprintf("{\"bucketname\":\"%s\",\"objectname\":\"%s\"}", bucketname, objectname)
@@ -139,26 +112,15 @@ func ObjectProxyDownload(location string, w http.ResponseWriter, req *http.Reque
 }
 
 func ObjectDownload(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "object download permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "object download permission deny", w)
 		utils.Logger.Info("object download permission deny")
 		return 
 	}
 	var args ObjectDownloadArgs
 	err := utils.ParseHttpBody(req.Body, &args)
 	if err != nil{
-		res.Errorcode = 400
-		res.Message = "object download args error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object download args error", w)
 		utils.Logger.Info("object download args error")
 		return 
 	}
@@ -170,10 +132,7 @@ func ObjectDownload(w http.ResponseWriter, req *http.Request, p httprouter.Param
 	objectid := utils.MakeStringMd5(objectname)
 	fmt.Println(username, bucketname, objectname)
 	if ObjectIsExist(objectname, bucketid, userid) == false{
-		res.Errorcode = 400
-		res.Message = "object is not exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object is not exists", w)
 		utils.Logger.Info("object is not exists")
 		return 
 	}
@@ -182,22 +141,15 @@ func ObjectDownload(w http.ResponseWriter, req *http.Request, p httprouter.Param
 	location := object.Location
 	filename := object.FileName
 	espaddr, ok := GlobalConf["espaddr"]
-	fmt.Println(filename, location)
 	if ok == false{
-		res.Errorcode = 500
-		res.Message = "object download read error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusInternalServerError, "object download read error", w)
 		utils.Logger.Error("object download read error : ", username, bucketname, objectname, err)
 		return
 	}
 	if espaddr != location {
-		err := ObjectProxyDownload(location, w, req, bucketname, objectname)
+		err := ObjectProxyDownload(location, w, req, username, bucketname, objectname)
 		if err != nil {
-			res.Errorcode = 500
-			res.Message = "object download read error"
-			ret, _ := json.Marshal(res)
-			io.WriteString(w, string(ret))
+			SendReponseMsg(http.StatusInternalServerError, "object download read error", w)
 			utils.Logger.Error("object download read error : ", username, bucketname, objectname, err)
 			return
 		}
@@ -205,26 +157,15 @@ func ObjectDownload(w http.ResponseWriter, req *http.Request, p httprouter.Param
 	}
 	err = dataproxy.DataRead(filename, w)
 	if err != nil {
-		res.Errorcode = 500
-		res.Message = "object download read error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusInternalServerError, "object download read error", w)
 		utils.Logger.Error("object download read error : ", username, bucketname, objectname, err)
 		return
 	}
 }
 
 func ObjectList(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "object list permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "object list permission deny", w)
 		utils.Logger.Info("object list permission deny")
 		return 
 	}
@@ -232,20 +173,14 @@ func ObjectList(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
 	var args ObjectListArgs
 	err := utils.ParseHttpBody(req.Body, &args)
 	if err != nil{
-		res.Errorcode = 400
-		res.Message = "object list args error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object list args error", w)
 		utils.Logger.Info("object list args error")
 		return 
 	}
 	bucketname := args.BucketName
 	bucketid := utils.MakeStringMd5(bucketname)
 	if BucketIsExist(bucketname, userid) == false {
-		res.Errorcode = 400
-		res.Message = "object list bucket not exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object list bucket not exists", w)
 		utils.Logger.Info("object list bucket not exists")
 		return 
 	}
@@ -255,32 +190,19 @@ func ObjectList(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
 	for _, object := range objects{
 		msg = fmt.Sprintf("%s %s", msg, object.ObjectName)
 	}
-	res.Message = msg
-	ret, _ := json.Marshal(res)
-    io.WriteString(w, string(ret))
+    SendReponseMsg(http.StatusOK, msg, w)
 }
 
 func ObjectDelete(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "object delete permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "object delete permission deny", w)
 		utils.Logger.Info("object delete permission deny")
 		return
 	}
 	var args ObjectDeleteArgs
 	err := utils.ParseHttpBody(req.Body, &args)
 	if err != nil{
-		res.Errorcode = 400
-		res.Message = "object delete args error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object delete args error", w)
 		utils.Logger.Info("object delete args error")
 		return 
 	}
@@ -291,41 +213,30 @@ func ObjectDelete(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 	objectname := args.ObjectName
 	objectid := utils.MakeStringMd5(objectname)
 	if ObjectIsExist(objectname, bucketid, userid) == false{
-		res.Errorcode = 400
-		res.Message = "object is not exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object is not exists", w)
 		utils.Logger.Info("object is not exits")
 		return 
 	}
 
-	Dbcon.Model(&metaproxy.Object{}).Where("object_id = ? and bucket_id = ? and user_id = ?", objectid, bucketid, userid).Update("is_delete", 1)
-	res.Message = "object delete success"
-	ret, _ := json.Marshal(res)
-	io.WriteString(w, string(ret))
+	err = Dbcon.Model(&metaproxy.Object{}).Where("object_id = ? and bucket_id = ? and user_id = ?", objectid, bucketid, userid).Update("is_delete", 1).Error
+	if err != nil{
+		SendReponseMsg(http.StatusInternalServerError, "object delete failed", w)
+		utils.Logger.Error("object delete failed : ", username, bucketname, objectname, err)
+		return 
+	}
+	SendReponseMsg(http.StatusOK, "object delete success", w)
 }
 
 func ObjectRename(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "object rename permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "object rename permission deny", w)
 		utils.Logger.Info("object rename permission deny")
 		return
 	}
 	var args ObjectRenameArgs
 	err := utils.ParseHttpBody(req.Body, &args)
 	if err != nil{
-		res.Errorcode = 400
-		res.Message = "object rename args error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object rename args error", w)
 		utils.Logger.Info("object rename args error")
 		return 
 	}
@@ -338,48 +249,34 @@ func ObjectRename(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 	destobjectname := args.DestObjectName
 	destobjectid := utils.MakeStringMd5(destobjectname)
 	if utils.CheckFileNameNormal(destobjectname) == false{
-		res.Errorcode = 400
-		res.Message = "destobject name abnormal"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "destobject name abnormal", w)
 		utils.Logger.Info("destobject name abnormal")
 		return 
 	}
 	if ObjectIsExist(srcobjectname, bucketid, userid) == false{
-		res.Errorcode = 400
-		res.Message = "object is not exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object is not exists", w)
 		utils.Logger.Info("object is not exists")
 		return 
 	}
-	Dbcon.Model(&metaproxy.Object{}).Where("object_id = ? and bucket_id = ? and user_id = ?", srcobjectid, bucketid, userid).Updates(metaproxy.Object{ObjectName: destobjectname, ObjectId: destobjectid})
-	res.Message = "object rename success"
-	ret, _ := json.Marshal(res)
-	io.WriteString(w, string(ret))
+	err = Dbcon.Model(&metaproxy.Object{}).Where("object_id = ? and bucket_id = ? and user_id = ?", srcobjectid, bucketid, userid).Updates(metaproxy.Object{ObjectName: destobjectname, ObjectId: destobjectid}).Error
+	if err != nil{
+		SendReponseMsg(http.StatusInternalServerError, "object rename failed", w)
+		utils.Logger.Error("object rename failed : ", username, bucketname, srcobjectname, destobjectname, err)
+		return 
+	}
+	SendReponseMsg(http.StatusOK, "object rename success", w)
 }
 
 func ObjectMove(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "object move permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "object move permission deny", w)
 		utils.Logger.Info("object move permission deny")
 		return
 	}
 	var args ObjectMoveArgs
 	err := utils.ParseHttpBody(req.Body, &args)
 	if err != nil{
-		res.Errorcode = 400
-		res.Message = "object move args error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object move args error", w)
 		utils.Logger.Info("object move args error")
 		return 
 	}
@@ -390,25 +287,22 @@ func ObjectMove(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
 	username := req.Header["Username"][0]
 	userid := utils.MakeStringMd5(username)
 	if BucketIsExist(destbucketname, userid) == false {
-		res.Errorcode = 400
-		res.Message = "destbucket not exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "destbucket not exists", w)
 		utils.Logger.Info("destbucket not exists")
 		return 
 	}
 	objectname := args.ObjectName
 	objectid := utils.MakeStringMd5(objectname)
 	if ObjectIsExist(objectname, srcbucketid, userid) == false{
-		res.Errorcode = 400
-		res.Message = "object is not exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "object is not exists", w)
 		utils.Logger.Info("object is not exists")
 		return 
 	}
-	Dbcon.Model(&metaproxy.Object{}).Where("object_id = ? and bucket_id = ? and user_id = ?", objectid, srcbucketid, userid).Update("bucket_id", destbucketid)
-	res.Message = "object rename success"
-	ret, _ := json.Marshal(res)
-	io.WriteString(w, string(ret))
+	err = Dbcon.Model(&metaproxy.Object{}).Where("object_id = ? and bucket_id = ? and user_id = ?", objectid, srcbucketid, userid).Update("bucket_id", destbucketid).Error
+	if err != nil{
+		SendReponseMsg(http.StatusInternalServerError, "object move failed", w)
+		utils.Logger.Error("object move failed : ", username, srcbucketname, destbucketname, objectname, err)
+		return 
+	}
+	SendReponseMsg(http.StatusOK, "object move success", w)
 }

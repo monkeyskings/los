@@ -2,10 +2,8 @@ package controller
 
 import (
 	"net/http"
-	"io"
 	"github.com/julienschmidt/httprouter"
 	"los/utils"
-	"encoding/json"
 	"los/metaproxy"
 	"fmt"
 )
@@ -29,45 +27,28 @@ func BucketHasObjects(bucketid string) bool{
 }
 
 func BucketCreate(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "bucket create permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "bucket create permission deny", w)
 		utils.Logger.Info("bucket create permission deny")
 		return
 	}
 	var args BucketCreateArgs
 	err := utils.ParseHttpBody(req.Body, &args)
 	if err != nil{
-		res.Errorcode = 400
-		res.Message = "bucket create args error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "bucket create args error", w)
 		utils.Logger.Info("bucket create args error")
 		return 
 	}
 	bucketname := args.BucketName
 	if utils.CheckNameNormal(bucketname) == false{
-		res.Errorcode = 400
-		res.Message = "bucket name abnormal"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "bucket name abnormal", w)
 		utils.Logger.Info("bucket name abnormal")
 		return 
 	}
 	username := req.Header["Username"][0]
 	userid := utils.MakeStringMd5(username)
 	if BucketIsExist(bucketname, userid) {
-		res.Errorcode = 400
-		res.Message = "bucket aready exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "bucket aready exists", w)
 		utils.Logger.Info("bucket aready exists : ", username, bucketname)
 		return 
 	}
@@ -77,35 +58,21 @@ func BucketCreate(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 		BucketName : bucketname,
 		UserId : userid,
 	}
-	Dbcon.Create(&bucket)
+	err = Dbcon.Create(&bucket).Error
 
-	if BucketIsExist(bucketname, userid) != true{
-		res.Errorcode = 500
-		res.Message = "bucket create failed"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if err != nil{
+		SendReponseMsg(http.StatusInternalServerError, "bucket create failed", w)
 		utils.Logger.Error("bucket create failed : ", username, bucketname, err)
 		return 
 	}
-
-	res.Message = "bucket create success"
-	ret, _ := json.Marshal(res)
-	io.WriteString(w, string(ret))
+	SendReponseMsg(http.StatusOK, "bucket create success", w)
 	utils.Logger.Info("bucket create success : ", username, bucketname)
 }
 
 
 func BucketList(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "bucket list permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "bucket list permission deny", w)
 		utils.Logger.Info("bucket list permission deny")
 		return 
 	}
@@ -116,111 +83,88 @@ func BucketList(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
 	for _, bucket := range bucekts{
 		msg = fmt.Sprintf("%s %s", msg, bucket.BucketName)
 	}
-	res.Message = msg
-	ret, _ := json.Marshal(res)
-    io.WriteString(w, string(ret))
+	SendReponseMsg(http.StatusOK, msg, w)
     utils.Logger.Info("bucket list success")
 }
 
 func BucketDelete(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "bucket delete permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "bucket delete permission deny", w)
 		utils.Logger.Info("bucket delete permission deny")
 		return 
 	}
 	var args BucketDeleteArgs
 	err := utils.ParseHttpBody(req.Body, &args)
 	if err != nil{
-		res.Errorcode = 400
-		res.Message = "bucket delete args error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "bucket delete args error", w)
 		utils.Logger.Info("bucket delete args error")
 		return 
 	}
-	userid := utils.MakeStringMd5(req.Header["Username"][0])
+	username := req.Header["Username"][0]
+	userid := utils.MakeStringMd5(username)
 	bucketname := args.BucketName
 	bucketid := utils.MakeStringMd5(bucketname)
 	if BucketIsExist(bucketname, userid) == false{
-		res.Errorcode = 400
-		res.Message = "bucket is not exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "bucket is not exists", w)
 		utils.Logger.Info("bucket is not exists")
 		return
 	}
 	if BucketHasObjects(bucketid) {
-		res.Errorcode = 400
-		res.Message = "bucket has some objects"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "bucket has some objects", w)
 		utils.Logger.Info("bucket has some objects")
 		return
 	}
-	Dbcon.Where("bucket_id = ? and user_id = ?", bucketid, userid).Delete(metaproxy.Bucket{})
-	res.Message = "bucket delete success"
-	ret, _ := json.Marshal(res)
-    io.WriteString(w, string(ret))
+	err = Dbcon.Where("bucket_id = ? and user_id = ?", bucketid, userid).Delete(metaproxy.Bucket{}).Error
+	if err != nil{
+		SendReponseMsg(http.StatusInternalServerError, "bucket delete failed", w)
+		utils.Logger.Error("bucket delete failed : ", username, bucketname, err)
+		return 
+	}
+    SendReponseMsg(http.StatusOK, "bucket delete success", w)
     utils.Logger.Info("bucket delete success")
 }
 
 func BucketRename(w http.ResponseWriter, req *http.Request, p httprouter.Params){
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "bucket rename permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "bucket rename permission deny", w)
 		utils.Logger.Info("bucket rename permission deny")
 		return 
 	}
 	var args BucketRenameArgs
 	err := utils.ParseHttpBody(req.Body, &args)
 	if err != nil{
-		res.Errorcode = 400
-		res.Message = "bucket rename args error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "bucket rename args error", w)
 		utils.Logger.Info("bucket rename args error")
 		return 
 	}
-	userid := utils.MakeStringMd5(req.Header["Username"][0])
+	username := req.Header["Username"][0]
+	userid := utils.MakeStringMd5(username)
 	srcbucketname := args.SrcBucketName
 	srcbucketid := utils.MakeStringMd5(srcbucketname)
 	destbucketname := args.DestBucketName
-	destbucektid := utils.MakeStringMd5(destbucketname)
+	destbucketid := utils.MakeStringMd5(destbucketname)
 	if utils.CheckNameNormal(destbucketname) == false{
-		res.Errorcode = 400
-		res.Message = "destbucket name abnormal"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "destbucket name abnormal", w)
 		utils.Logger.Info("destbucket name abnormal")
 		return 
 	}
 	if BucketIsExist(srcbucketname, userid) == false{
-		res.Errorcode = 400
-		res.Message = "bucket is not exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "bucket is not exists", w)
 		utils.Logger.Info("bucket is not exists")
 		return
 	}
-	Dbcon.Model(&metaproxy.Bucket{}).Where("bucket_id = ? and user_id = ?", srcbucketid, userid).Updates(metaproxy.Bucket{BucketName: destbucketname, BucketId: destbucektid})
-	Dbcon.Model(&metaproxy.Object{}).Where("bucket_id = ? and user_id = ?", srcbucketid, userid).Update("bucket_id", destbucektid)
-	res.Message = "bucket rename success"
-	ret, _ := json.Marshal(res)
-    io.WriteString(w, string(ret))
+	err = Dbcon.Model(&metaproxy.Bucket{}).Where("bucket_id = ? and user_id = ?", srcbucketid, userid).Updates(metaproxy.Bucket{BucketName: destbucketname, BucketId: destbucketid}).Error
+	if err != nil {
+		SendReponseMsg(http.StatusInternalServerError, "bucket rename failed", w)
+		utils.Logger.Error("bucket rename failed : ", username, srcbucketname, destbucketname, err)
+		return 
+	}
+	err = Dbcon.Model(&metaproxy.Object{}).Where("bucket_id = ? and user_id = ?", srcbucketid, userid).Update("bucket_id", destbucketid).Error
+	if err != nil{
+		SendReponseMsg(http.StatusInternalServerError, "bucket rename failed", w)
+		utils.Logger.Error("bucket rename failed : ", username, srcbucketname, destbucketname, err)
+		return 
+	}
+    SendReponseMsg(http.StatusOK, "bucket rename success", w)
     utils.Logger.Info("bucket rename success")
 }

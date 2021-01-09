@@ -4,11 +4,9 @@ package controller
 import (
 	"net/http"
 	"time"
-	"io"
 	"fmt"
 	"github.com/julienschmidt/httprouter"
 	"los/utils"
-	"encoding/json"
 	"math/rand"
 	"los/metaproxy"
 )
@@ -24,27 +22,17 @@ func UserIsExist(username string) bool{
 
 
 func UserCreate(w http.ResponseWriter, req *http.Request, p httprouter.Params){
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
 	var args UserCreateArgs
 	err := utils.ParseHttpBody(req.Body, &args)
 	if err != nil{
-		res.Errorcode = 400
-		res.Message = "user create args error"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "user create args error", w)
 		utils.Logger.Info("user create args error")
 		return 
 	}
 	username := args.Username
 	
 	if utils.CheckNameNormal(username) == false{
-		res.Errorcode = 400
-		res.Message = "user name abnormal"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "user name abnormal", w)
 		utils.Logger.Info("user name abnormal")
 		return 
 	}
@@ -60,25 +48,17 @@ func UserCreate(w http.ResponseWriter, req *http.Request, p httprouter.Params){
 	}
 	
 	if UserIsExist(username) {
-		res.Errorcode = 400
-		res.Message = "user aready exists"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+		SendReponseMsg(http.StatusBadRequest, "user aready exists", w)
 		utils.Logger.Info("user aready exists : ", username)
 		return 
 	}
-	Dbcon.Create(&user)
-	if UserIsExist(username) != true{
-		res.Errorcode = 500
-		res.Message = "user create failed"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	err = Dbcon.Create(&user).Error
+	if err != nil{
+		SendReponseMsg(http.StatusInternalServerError, "user create failed", w)
 		utils.Logger.Error("user create failed : ", username)
 		return 
 	}
-	res.Message = token
-	ret, _ := json.Marshal(res)
-	io.WriteString(w, string(ret))
+	SendReponseMsg(http.StatusOK, token, w)
 	utils.Logger.Info("user create success : ", username)
 }
 
@@ -97,26 +77,18 @@ func UserConfirm(header http.Header) bool{
 }
 
 func UserUpdateToken(w http.ResponseWriter, req *http.Request, p httprouter.Params){
-	confirmret := UserConfirm(req.Header)
-	res := ResponseData{
-		Errorcode: 200,
-		Message: "",
-	}
-	if confirmret != true{
-		res.Errorcode = 400
-		res.Message = "user update token permission deny"
-		ret, _ := json.Marshal(res)
-		io.WriteString(w, string(ret))
+	if UserConfirm(req.Header) != true{
+		SendReponseMsg(http.StatusUnauthorized, "user update token permission deny", w)
 		utils.Logger.Info("user update token permission deny")
 		return 
 	}
 	username := req.Header["Username"]
 	token := utils.MakeStringMd5(fmt.Sprintf("%d-%d", time.Now().Unix(), rand.Int()))
-	Dbcon.Model(&metaproxy.User{}).Where("user_name = ?", username).Update("user_token", token)
-	res.Message = token
-	ret, _ := json.Marshal(res)
-	io.WriteString(w, string(ret))
+	err := Dbcon.Model(&metaproxy.User{}).Where("user_name = ?", username).Update("user_token", token).Error
+	if err != nil{
+		SendReponseMsg(http.StatusInternalServerError, "user update token failed", w)
+		utils.Logger.Error("user update token failed")
+	}
+	SendReponseMsg(http.StatusOK, token, w)
 	utils.Logger.Info("user update token success")
 }
-
-
