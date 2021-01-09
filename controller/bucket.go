@@ -6,6 +6,7 @@ import (
 	"los/utils"
 	"los/metaproxy"
 	"fmt"
+	"strconv"
 )
 
 func BucketIsExist(bucketname, userid string) bool{
@@ -24,6 +25,25 @@ func BucketHasObjects(bucketid string) bool{
 		return true
 	}
 	return false
+}
+
+func BucketNumLimit(userid string) bool{
+	var count int
+	bucketnumconf, ok := GlobalConf["bucketnum"]
+	if ok == false {
+		utils.Logger.Error("global conf bucketnum get error")
+		return false
+	}
+	bucketnum, err := strconv.Atoi(bucketnumconf)
+	if err != nil {
+		utils.Logger.Error("global conf bucketnum trans int error")
+		return false
+	}
+	Dbcon.Model(&metaproxy.Bucket{}).Where("user_id = ? ", userid).Count(&count)
+	if count < bucketnum{
+		return false
+	}
+	return true
 }
 
 func BucketCreate(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
@@ -50,6 +70,11 @@ func BucketCreate(w http.ResponseWriter, req *http.Request, p httprouter.Params)
 	if BucketIsExist(bucketname, userid) {
 		SendReponseMsg(http.StatusBadRequest, "bucket aready exists", w)
 		utils.Logger.Info("bucket aready exists : ", username, bucketname)
+		return 
+	}
+	if BucketNumLimit(userid){
+		SendReponseMsg(http.StatusBadRequest, "bucket limit exceed", w)
+		utils.Logger.Info("bucket limit exceed : ", username, bucketname)
 		return 
 	}
 	bucketid := utils.MakeStringMd5(bucketname)

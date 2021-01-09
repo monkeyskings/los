@@ -2,14 +2,11 @@ package metaproxy
 
 import (
 	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"errors"
 	"los/utils"
 )
 
-func Sqlite3Open(dbpath string) (*gorm.DB, error) {
-	return gorm.Open("sqlite3", dbpath)
-}
+
 
 func DbOpen(dbconf map[string]string) (*gorm.DB, error){
 	dbtype, ok:= dbconf["dbtype"]
@@ -19,10 +16,20 @@ func DbOpen(dbconf map[string]string) (*gorm.DB, error){
 	if dbtype == "sqlite3"{
 		dbpath, ok:= dbconf["dbname"]
 		if ok == false{
-			return nil, errors.New("dbconf no dbpath")
+			return nil, errors.New("sqlite dbconf no dbpath")
 		}
 		utils.Logger.Info("start open sqlite3")
 		return Sqlite3Open(dbpath)
+	}
+	if dbtype == "mysql"{
+		dbuser, ok1 := dbconf["dbuser"]
+		dbpass, ok2 := dbconf["dbpass"]
+		dbaddr, ok3 := dbconf["dbaddr"]
+		dbname, ok4 := dbconf["dbname"]
+		if (ok1 && ok2 && ok3 && ok4) == false{
+			return  nil, errors.New("mysql dbconf error")
+		}
+		return MysqlOpen(dbuser, dbpass, dbaddr, dbname)
 	}
 	return nil, nil
 }
