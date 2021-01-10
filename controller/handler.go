@@ -14,6 +14,7 @@ import (
 )
 
 type ResponseData struct{
+	RequestId string
 	Errorcode int
 	Message string
 }
@@ -98,8 +99,9 @@ func ParseHttpBody(httpbody io.ReadCloser, v interface{}) error{
 
 }
 
-func SendReponseMsg(errcode int, msg string, w http.ResponseWriter) {
+func SendReponseMsg(requestid string, errcode int, msg string, w http.ResponseWriter) {
 	res := ResponseData{
+		RequestId: requestid,
 		Errorcode: errcode,
 		Message: msg,
 	}
